@@ -1,0 +1,722 @@
+{% extends 'base.html' %}
+{% load packing_extras %}
+
+{% block content %}
+<!-- Loading overlay -->
+<div id="loading-overlay" class="loading-overlay" hidden>
+    <div class="loading-box">
+        <div class="spinner"></div>
+        <p class="loading-title" id="loading-title">Running Simulation&hellip;</p>
+        <p class="loading-sub" id="loading-sub">Preparing calculation inputs.</p>
+        <div class="loading-progress-wrap" aria-live="polite">
+            <div class="loading-progress-track">
+                <div id="loading-progress-fill" class="loading-progress-fill" style="width: 0%"></div>
+            </div>
+            <div class="loading-progress-meta">
+                <span id="loading-progress-percent">0%</span>
+                <span id="loading-progress-step">Initializing</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<section class="hero fade-in">
+    <p class="eyebrow">Django Deployment</p>
+    <h1>Particle Packing Studio</h1>
+    <p class="subtitle">
+        Upload four PSD curves, tune mass and material parameters, and generate packing predictions instantly.
+    </p>
+</section>
+
+<section class="panel slide-up caution-panel">
+    <h2>CSV Upload Caution</h2>
+    <p class="subtitle">File name can be anything. The app reads column names and values only.</p>
+    <ul class="caution-list">
+        <li>Required columns: <strong>Size</strong> (in mm) and <strong>Acc from small</strong>.</li>
+        <li>Size must be numeric, in mm, and positive.</li>
+        <li>Acc from small must be numeric, between 0 and 100.</li>
+        <li>After sorting by Size (mm, small to large), Acc from small must be non-decreasing.</li>
+        <li>The last cumulative value at the largest size must be 100 (within tolerance).</li>
+    </ul>
+</section>
+
+<section class="panel slide-up collapsible-panel{% if result %} is-collapsed{% endif %}" id="model-inputs-panel">
+    <div class="panel-header-row">
+        <h2>Model Inputs</h2>
+        <button type="button" class="panel-toggle-btn" id="model-inputs-toggle" aria-expanded="{% if result %}false{% else %}true{% endif %}" aria-controls="model-inputs-body">
+            <span>{% if result %}Show Inputs{% else %}Hide Inputs{% endif %}</span>
+        </button>
+    </div>
+    <div class="panel-body" id="model-inputs-body">
+    <form method="post" enctype="multipart/form-data" class="form-grid">
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+            <div class="error-box">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <div class="card-block">
+            <h3>PSD Files and Display Names</h3>
+            <p class="hint">Provide PSD source (upload/manual) and optional display name in the same slot. If name is blank, default is PSD_1, PSD_2, PSD_3, PSD_4.</p>
+            <div id="no-psd-warning" class="no-psd-warning" style="display:none">
+                &#9888; All PSD files have been removed. Restore at least one to run the simulation.
+            </div>
+            <div class="field-grid psd-grid">
+                {% for field in form %}
+                    {% if 'psd' in field.name %}
+                    <div class="psd-slot" id="slot-{{ field.name }}">
+                        {% if field.name == 'psd1' %}
+                        <input type="hidden" name="{{ field.name }}_active" id="active-{{ field.name }}" value="{{ active_psd1|default:'1' }}">
+                        <input type="hidden" name="manual_{{ field.name }}" id="manual-{{ field.name }}" value="{{ manual_psd1|default:'' }}">
+                        {% elif field.name == 'psd2' %}
+                        <input type="hidden" name="{{ field.name }}_active" id="active-{{ field.name }}" value="{{ active_psd2|default:'1' }}">
+                        <input type="hidden" name="manual_{{ field.name }}" id="manual-{{ field.name }}" value="{{ manual_psd2|default:'' }}">
+                        {% elif field.name == 'psd3' %}
+                        <input type="hidden" name="{{ field.name }}_active" id="active-{{ field.name }}" value="{{ active_psd3|default:'1' }}">
+                        <input type="hidden" name="manual_{{ field.name }}" id="manual-{{ field.name }}" value="{{ manual_psd3|default:'' }}">
+                        {% elif field.name == 'psd4' %}
+                        <input type="hidden" name="{{ field.name }}_active" id="active-{{ field.name }}" value="{{ active_psd4|default:'1' }}">
+                        <input type="hidden" name="manual_{{ field.name }}" id="manual-{{ field.name }}" value="{{ manual_psd4|default:'' }}">
+                        {% endif %}
+                        <span class="psd-label">{{ field.label }}</span>
+
+                        <!-- PSD source badge (empty/upload/manual) -->
+                        <div class="pre-upload-badge" id="badge-{{ field.name }}">
+                            <div class="badge-row-top">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                                <span class="badge-filename" id="fname-{{ field.name }}">No file selected</span>
+                                <span class="badge-tag" id="btag-{{ field.name }}">empty</span>
+                                <button type="button" class="badge-delete-btn" onclick="deletePSD('{{ field.name }}')" title="Remove this PSD">&#x2715;</button>
+                            </div>
+                            <button type="button" class="badge-replace-btn" onclick="activateUpload('{{ field.name }}')">&#8593; Upload CSV file</button>
+                            <button type="button" class="badge-manual-btn" onclick="openManualPSDWindow('{{ field.name }}')">&#9998; Manual input</button>
+                        </div>
+
+                        <!-- File input wrap -->
+                        <div class="file-input-wrap" id="input-wrap-{{ field.name }}" style="display:none">
+                            {{ field }}
+                            <div class="file-input-actions">
+                                <button type="button" class="cancel-upload-btn" onclick="cancelUpload('{{ field.name }}')">&#x2715; Cancel upload</button>
+                                <button type="button" class="delete-upload-btn" onclick="deletePSD('{{ field.name }}')">&#128465; Remove PSD</button>
+                                <button type="button" class="manual-upload-btn" onclick="openManualPSDWindow('{{ field.name }}')">&#9998; Manual input</button>
+                            </div>
+                        </div>
+
+                        <!-- Removed state -->
+                        <div class="psd-removed" id="removed-{{ field.name }}" style="display:none">
+                            <span class="removed-icon">&#128465;</span>
+                            <span class="removed-text">Not included in calculation</span>
+                            <button type="button" class="restore-btn" onclick="restorePSD('{{ field.name }}')">&#8635; Restore</button>
+                        </div>
+
+                        {% with slot=field.name|slice:'3:' %}
+                        {% for nfield in form %}
+                            {% if nfield.name == 'material_name'|add:slot %}
+                                <label class="psd-name-label">
+                                    <span>{{ nfield.label }}</span>
+                                    {{ nfield }}
+                                    {% for error in nfield.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                                </label>
+                            {% endif %}
+                        {% endfor %}
+                        {% endwith %}
+
+                        {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                    </div>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-block">
+            <h3>Mass Fractions</h3>
+            <p class="hint">Use slider or typed input for M1-M3. M4 is auto-balanced so total = 1.000. If not all 4 PSDs are included, only uploaded/manual PSDs are mixed and their mass fractions are normalized by ratio.</p>
+            <div class="mass-slider-grid">
+                <div class="mass-row">
+                    <label for="mass-slider-1">Mass Fraction M1</label>
+                    <input id="mass-slider-1" type="range" min="0" max="1" step="0.001" value="{{ form.m1.value|default_if_none:'0.25' }}" />
+                    <input id="mass-input-1" class="mass-value-input" type="number" min="0" max="1" step="0.001" value="{{ form.m1.value|default_if_none:'0.25' }}" />
+                </div>
+                <div class="mass-row">
+                    <label for="mass-slider-2">Mass Fraction M2</label>
+                    <input id="mass-slider-2" type="range" min="0" max="1" step="0.001" value="{{ form.m2.value|default_if_none:'0.25' }}" />
+                    <input id="mass-input-2" class="mass-value-input" type="number" min="0" max="1" step="0.001" value="{{ form.m2.value|default_if_none:'0.25' }}" />
+                </div>
+                <div class="mass-row">
+                    <label for="mass-slider-3">Mass Fraction M3</label>
+                    <input id="mass-slider-3" type="range" min="0" max="1" step="0.001" value="{{ form.m3.value|default_if_none:'0.25' }}" />
+                    <input id="mass-input-3" class="mass-value-input" type="number" min="0" max="1" step="0.001" value="{{ form.m3.value|default_if_none:'0.25' }}" />
+                </div>
+                <div class="mass-row">
+                    <label for="mass-slider-4">Mass Fraction M4</label>
+                    <input id="mass-slider-4" type="range" min="0" max="1" step="0.001" value="{{ form.m4.value|default_if_none:'0.25' }}" />
+                    <input id="mass-input-4" class="mass-value-input auto-balanced" type="number" min="0" max="1" step="0.001" value="{{ form.m4.value|default_if_none:'0.25' }}" readonly />
+                </div>
+            </div>
+            <p class="mass-total">Total: <strong id="mass-total-value">1.000</strong></p>
+
+            <div class="mass-hidden-inputs" hidden>
+                {{ form.m1 }}
+                {{ form.m2 }}
+                {{ form.m3 }}
+                {{ form.m4 }}
+            </div>
+            <div class="field-grid four-col">
+                {% for field in form %}
+                    {% if field.name == 'm1' or field.name == 'm2' or field.name == 'm3' or field.name == 'm4' %}
+                        {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-block">
+            <h3>Material Presets (Auto-fill SG and β)</h3>
+            <p class="hint">Choose a material for each PSD to auto-fill density and beta. Select <strong>Custom</strong> to enter your own values.</p>
+            <div class="field-grid four-col material-grid">
+                {% for field in form %}
+                    {% if field.name == 'material1' or field.name == 'material2' or field.name == 'material3' or field.name == 'material4' %}
+                        <label>
+                            <span>{{ field.label }}</span>
+                            {{ field }}
+                            {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                        </label>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-block custom-fields-card" id="custom-density-card" style="display:none">
+            <h3>Densities</h3>
+            <p class="hint custom-mode-hint">Manual edit is enabled only if the corresponding <strong>Material</strong> is set to <strong>Custom</strong>.</p>
+            <div class="field-grid four-col">
+                {% for field in form %}
+                    {% if field.name == 'rho1' or field.name == 'rho2' or field.name == 'rho3' or field.name == 'rho4' %}
+                        <label>
+                            <span>{{ field.label }}</span>
+                            {{ field }}
+                            {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                        </label>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="card-block custom-fields-card" id="custom-beta-card" style="display:none">
+            <h3>Beta Factors</h3>
+            <p class="hint custom-mode-hint">To type your own beta value, first select <strong>Custom</strong> in the matching material dropdown.</p>
+            <div class="field-grid four-col">
+                {% for field in form %}
+                    {% if field.name == 'beta1' or field.name == 'beta2' or field.name == 'beta3' or field.name == 'beta4' %}
+                        <label>
+                            <span>{{ field.label }}</span>
+                            {{ field }}
+                            {% for error in field.errors %}<small class="error">{{ error }}</small>{% endfor %}
+                        </label>
+                    {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+
+        <button type="submit" class="primary-btn" id="submit-btn">
+            <svg class="btn-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            Run Packing Simulation
+        </button>
+    </form>
+    </div>
+</section>
+
+{% if result %}
+<section class="panel slide-up results-wrap">
+    <h2>Results</h2>
+
+    <div class="metric-grid">
+        <div class="metric-card">
+            <p>Virtual Packing Density</p>
+            <strong>{{ result.final_packing|floatformat:6 }}</strong>
+        </div>
+        <div class="metric-card">
+            <p>True Packing Density with Compaction Index K=4</p>
+            <strong>{{ result.true_packing.k4|floatformat:6 }}</strong>
+        </div>
+        <div class="metric-card">
+            <p>True Packing Density with Compaction Index K=6.7</p>
+            <strong>{{ result.true_packing.k6_7|floatformat:6 }}</strong>
+        </div>
+        <div class="metric-card">
+            <p>True Packing Density with Compaction Index K=7</p>
+            <strong>{{ result.true_packing.k7|floatformat:6 }}</strong>
+        </div>
+        <div class="metric-card">
+            <p>True Packing Density with Compaction Index K=9</p>
+            <strong>{{ result.true_packing.k9|floatformat:6 }}</strong>
+        </div>
+    </div>
+
+    <div class="fit-card">
+        <h3>Inputs Used For Calculation</h3>
+        <div class="table-scroll fit-table-scroll">
+            <table>
+                <thead>
+                    <tr>
+                        <th>PSD</th>
+                        <th>Mass Fraction (Normalized)</th>
+                        <th>rho (SG)</th>
+                        <th>beta</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for row in result.input_summary %}
+                    <tr>
+                        <td>{{ row.name }}</td>
+                        <td>{{ row.mass_fraction|floatformat:6 }}</td>
+                        <td>{{ row.rho|floatformat:6 }}</td>
+                        <td>{{ row.beta|floatformat:6 }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="chart-grid">
+        <article class="chart-card">
+            <h3>PSD(s) Plots</h3>
+            <img alt="Mixed PSD chart" src="data:image/png;base64,{{ result.charts.mix_plot }}" />
+        </article>
+        <article class="chart-card">
+            <h3>Loosening and Wall Effect Plots</h3>
+            <img alt="Packing effects chart" src="data:image/png;base64,{{ result.charts.effects_plot }}" />
+        </article>
+    </div>
+
+    <article class="chart-card chart-card-wide">
+        <h3>Normalized Particle Sketch</h3>
+        <img alt="Normalized particle sketch" src="data:image/png;base64,{{ result.charts.particle_heatmap }}" />
+        <p class="chart-note">
+            Note: The top panel shows the total frequency per size bin. The lower panel places all particles on one horizontal line, uses color to indicate PSD group, and shows the generated count inside each bubble.
+        </p>
+    </article>
+
+    <div class="fit-grid">
+        <article class="chart-card fit-curve-card">
+            <h3>Fitting Plots</h3>
+            <img alt="PSD fit curves" src="data:image/png;base64,{{ result.charts.fit_curves }}" />
+        </article>
+
+        <div class="fit-card fit-summary-card">
+            <h3>PSD Fit Summary</h3>
+            <div class="table-scroll fit-table-scroll">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>PSD</th>
+                            <th>x0</th>
+                            <th>n</th>
+                            <th>RMSE</th>
+                            <th>R²</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for fit in result.fit_results %}
+                        <tr>
+                            <td>{{ fit.name }}</td>
+                            <td>{{ fit.x0|floatformat:6 }}</td>
+                            <td>{{ fit.n|floatformat:6 }}</td>
+                            <td>{{ fit.rmse|floatformat:6 }}</td>
+                            <td>{{ fit.rsq|floatformat:6 }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</section>
+{% endif %}
+
+<script>
+const MATERIAL_PRESETS = {
+    rock: { rho: 2.70, beta: 0.60 },
+    limestone: { rho: 2.70, beta: 0.60 },
+    sand: { rho: 2.65, beta: 0.63 },
+    cement: { rho: 3.15, beta: 0.56 },
+    pfa: { rho: 2.30, beta: 0.52 },
+    silica_fume: { rho: 2.20, beta: 0.42 },
+    clay: { rho: 2.60, beta: 0.35 },
+};
+
+function openManualPSDWindow(name) {
+    const popup = window.open('/manual-psd/?slot=' + encodeURIComponent(name), 'manualPSD_' + name, 'width=900,height=720');
+    if (!popup) {
+        alert('Popup was blocked. Please allow popups for this site to use manual PSD input.');
+    }
+}
+
+function receiveManualPSD(slotName, csvText, rowCount) {
+    const manualInput = document.getElementById('manual-' + slotName);
+    if (!manualInput) return;
+
+    manualInput.value = csvText || '';
+    document.getElementById('active-' + slotName).value = '1';
+
+    const wrap = document.getElementById('input-wrap-' + slotName);
+    const fileInput = wrap.querySelector('input[type=file]');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    wrap.style.display = 'none';
+    document.getElementById('removed-' + slotName).style.display = 'none';
+    document.getElementById('badge-' + slotName).style.display = 'flex';
+
+    updateSlotBadgeFromSource(slotName);
+
+    checkAllDeleted();
+}
+
+function updateSlotBadgeFromSource(name) {
+    const manualText = (document.getElementById('manual-' + name).value || '').trim();
+    const wrap = document.getElementById('input-wrap-' + name);
+    const fileInput = wrap.querySelector('input[type=file]');
+    const hasUpload = !!(fileInput && fileInput.files && fileInput.files.length > 0);
+    const fname = document.getElementById('fname-' + name);
+    const btag = document.getElementById('btag-' + name);
+    const badge = document.getElementById('badge-' + name);
+
+    if (hasUpload) {
+        if (fname) fname.textContent = fileInput.files[0].name;
+        if (btag) btag.textContent = 'upload';
+        if (badge) {
+            badge.classList.add('complete');
+            badge.classList.remove('pending');
+        }
+        return;
+    }
+
+    if (manualText) {
+        const rowCount = Math.max(0, manualText.split(/\r?\n/).length - 1);
+        if (fname) fname.textContent = 'Manual PSD (' + rowCount + ' rows)';
+        if (btag) btag.textContent = 'manual';
+        if (badge) {
+            badge.classList.add('complete');
+            badge.classList.remove('pending');
+        }
+        return;
+    }
+
+    if (fname) fname.textContent = 'Not uploaded yet';
+    if (btag) btag.textContent = 'pending';
+    if (badge) {
+        badge.classList.remove('complete');
+        badge.classList.add('pending');
+    }
+}
+
+function setFieldEditable(field, editable) {
+    field.readOnly = !editable;
+    field.classList.toggle('locked-input', !editable);
+    field.classList.toggle('custom-input', editable);
+}
+
+function applyMaterialPreset(psdIndex) {
+    const material = document.querySelector('[name=material' + psdIndex + ']');
+    const rhoInput = document.querySelector('[name=rho' + psdIndex + ']');
+    const betaInput = document.querySelector('[name=beta' + psdIndex + ']');
+    if (!material || !rhoInput || !betaInput) return;
+
+    const key = material.value;
+    if (key === 'custom') {
+        setFieldEditable(rhoInput, true);
+        setFieldEditable(betaInput, true);
+        updateCustomSectionVisibility();
+        return;
+    }
+
+    const preset = MATERIAL_PRESETS[key];
+    if (!preset) return;
+
+    rhoInput.value = preset.rho.toFixed(2);
+    betaInput.value = preset.beta.toFixed(2);
+    setFieldEditable(rhoInput, false);
+    setFieldEditable(betaInput, false);
+    updateCustomSectionVisibility();
+}
+
+function updateCustomSectionVisibility() {
+    const materials = [1, 2, 3, 4].map(i => document.querySelector('[name=material' + i + ']'));
+    const hasCustom = materials.some(m => m && m.value === 'custom');
+
+    const densityCard = document.getElementById('custom-density-card');
+    const betaCard = document.getElementById('custom-beta-card');
+    if (!densityCard || !betaCard) return;
+
+    // Keep cards visible when there are validation errors.
+    const hasDensityErrors = densityCard.querySelector('.error') !== null;
+    const hasBetaErrors = betaCard.querySelector('.error') !== null;
+    const showCards = hasCustom || hasDensityErrors || hasBetaErrors;
+
+    densityCard.style.display = showCards ? '' : 'none';
+    betaCard.style.display = showCards ? '' : 'none';
+}
+
+function initMaterialPresets() {
+    for (let i = 1; i <= 4; i += 1) {
+        const material = document.querySelector('[name=material' + i + ']');
+        if (!material) continue;
+        if (!material.dataset.boundChange) {
+            material.addEventListener('change', function() {
+                applyMaterialPreset(i);
+            });
+            material.dataset.boundChange = '1';
+        }
+        applyMaterialPreset(i);
+    }
+    updateCustomSectionVisibility();
+}
+
+let loadingProgressTimer = null;
+const loadingStages = [
+    { pct: 8, title: 'Checking Inputs', step: 'Validating active PSD selection and mass fractions.', sub: 'Checking inputs before computation.' },
+    { pct: 18, title: 'Reading PSD Data', step: 'Loading CSV curves and normalizing cumulative percentages.', sub: 'Reading PSD files and sorting particle sizes.' },
+    { pct: 34, title: 'Fitting Curves', step: 'Fitting Rosin-Rammler parameters (x0, n, R2) for each PSD.', sub: 'Estimating curve parameters for active PSDs.' },
+    { pct: 49, title: 'Mixing PSD', step: 'Blending PSDs using mass fractions and material densities.', sub: 'Calculating weighted mixed PSD.' },
+    { pct: 66, title: 'Packing Model', step: 'Building size classes and beta-adjusted fractions.', sub: 'Preparing classes for packing equations.' },
+    { pct: 79, title: 'Wall and Loose Effects', step: 'Computing wall-effect and loose-effect terms per class.', sub: 'Running wall and loose interaction terms.' },
+    { pct: 89, title: 'True Packing', step: 'Solving compacted packing at K = 4, 6.7, 7, and 9.', sub: 'Solving true packing values for target K settings.' },
+    { pct: 96, title: 'Rendering Charts', step: 'Generating mixed PSD, effects, particle sketch, and fit curves.', sub: 'Building result figures and summary outputs.' },
+    { pct: 99, title: 'Finalizing', step: 'Preparing response payload and result table.', sub: 'Finalizing simulation output.' }
+];
+
+function setLoadingStage(stage) {
+    document.getElementById('loading-progress-fill').style.width = stage.pct + '%';
+    document.getElementById('loading-progress-percent').textContent = stage.pct + '%';
+    document.getElementById('loading-title').textContent = stage.title;
+    document.getElementById('loading-progress-step').textContent = stage.step;
+    document.getElementById('loading-sub').textContent = stage.sub;
+}
+
+function startLoadingProgress() {
+    if (loadingProgressTimer) {
+        clearInterval(loadingProgressTimer);
+        loadingProgressTimer = null;
+    }
+    let stageIndex = 0;
+    setLoadingStage(loadingStages[0]);
+    loadingProgressTimer = setInterval(function() {
+        if (stageIndex >= loadingStages.length - 1) {
+            clearInterval(loadingProgressTimer);
+            loadingProgressTimer = null;
+            return;
+        }
+        stageIndex += 1;
+        setLoadingStage(loadingStages[stageIndex]);
+    }, 1200);
+}
+
+function stopLoadingProgress() {
+    if (loadingProgressTimer) {
+        clearInterval(loadingProgressTimer);
+        loadingProgressTimer = null;
+    }
+}
+
+function activateUpload(name) {
+    document.getElementById('badge-' + name).style.display = 'none';
+    document.getElementById('input-wrap-' + name).style.display = 'block';
+}
+
+function cancelUpload(name) {
+    const wrap = document.getElementById('input-wrap-' + name);
+    const input = wrap.querySelector('input[type=file]');
+    input.value = '';
+    wrap.style.display = 'none';
+    document.getElementById('badge-' + name).style.display = 'flex';
+    updateSlotBadgeFromSource(name);
+}
+
+// Show loading overlay on submit
+document.querySelector('form').addEventListener('submit', function(e) {
+    const allDeleted = ['psd1','psd2','psd3','psd4'].every(
+        name => document.getElementById('active-' + name).value === '0'
+    );
+    if (allDeleted) { e.preventDefault(); return; }
+
+    const masses = ['m1','m2','m3','m4'].map(id => parseFloat(document.querySelector('[name=' + id + ']').value) || 0);
+    if (masses.every(v => v === 0)) return;
+    startLoadingProgress();
+    document.getElementById('loading-overlay').removeAttribute('hidden');
+    document.getElementById('submit-btn').disabled = true;
+});
+
+function deletePSD(name) {
+    document.getElementById('active-' + name).value = '0';
+    document.getElementById('manual-' + name).value = '';
+    document.getElementById('badge-' + name).style.display = 'none';
+    document.getElementById('input-wrap-' + name).style.display = 'none';
+    // clear any selected file
+    const fileInput = document.querySelector('#input-wrap-' + name + ' input[type=file]');
+    if (fileInput) fileInput.value = '';
+    document.getElementById('removed-' + name).style.display = 'flex';
+    checkAllDeleted();
+}
+
+function restorePSD(name) {
+    document.getElementById('active-' + name).value = '1';
+    document.getElementById('removed-' + name).style.display = 'none';
+    document.getElementById('badge-' + name).style.display = '';
+    updateSlotBadgeFromSource(name);
+    checkAllDeleted();
+}
+
+function checkAllDeleted() {
+    const allDeleted = ['psd1','psd2','psd3','psd4'].every(
+        name => document.getElementById('active-' + name).value === '0'
+    );
+    const warning = document.getElementById('no-psd-warning');
+    const btn = document.getElementById('submit-btn');
+    warning.style.display = allDeleted ? 'flex' : 'none';
+    btn.disabled = allDeleted;
+}
+
+function initPSDSourceSync() {
+    ['psd1', 'psd2', 'psd3', 'psd4'].forEach(function(name) {
+        const wrap = document.getElementById('input-wrap-' + name);
+        if (!wrap) return;
+        const fileInput = wrap.querySelector('input[type=file]');
+        if (!fileInput) return;
+
+        if (!fileInput.dataset.boundChange) {
+            fileInput.addEventListener('change', function() {
+                if (fileInput.files && fileInput.files.length > 0) {
+                    document.getElementById('active-' + name).value = '1';
+                    updateSlotBadgeFromSource(name);
+
+                    // Cache uploaded CSV text into hidden manual field so the input is reusable after calculation.
+                    const selected = fileInput.files[0];
+                    const reader = new FileReader();
+                    reader.onload = function(evt) {
+                        const text = String(evt.target && evt.target.result ? evt.target.result : '');
+                        if (text.trim()) {
+                            document.getElementById('manual-' + name).value = text;
+                        }
+                    };
+                    reader.readAsText(selected);
+                }
+            });
+            fileInput.dataset.boundChange = '1';
+        }
+        updateSlotBadgeFromSource(name);
+    });
+}
+
+function initMassSliders() {
+    const sliders = [1, 2, 3, 4].map(i => document.getElementById('mass-slider-' + i));
+    const valueInputs = [1, 2, 3, 4].map(i => document.getElementById('mass-input-' + i));
+    const hidden = [1, 2, 3, 4].map(i => document.getElementById('id_m' + i));
+    const totalEl = document.getElementById('mass-total-value');
+
+    if (sliders.some(s => !s) || valueInputs.some(v => !v) || hidden.some(h => !h) || !totalEl) {
+        return;
+    }
+
+    function clamp01(v) {
+        return Math.max(0, Math.min(1, v));
+    }
+
+    function readEditableMasses() {
+        const m1 = clamp01(parseFloat(valueInputs[0].value) || parseFloat(sliders[0].value) || 0);
+        const m2 = clamp01(parseFloat(valueInputs[1].value) || parseFloat(sliders[1].value) || 0);
+        const m3 = clamp01(parseFloat(valueInputs[2].value) || parseFloat(sliders[2].value) || 0);
+        return [m1, m2, m3];
+    }
+
+    function syncMasses() {
+        let [m1, m2, m3] = readEditableMasses();
+        const sum123 = m1 + m2 + m3;
+
+        if (sum123 > 1) {
+            const scale = 1 / sum123;
+            m1 *= scale;
+            m2 *= scale;
+            m3 *= scale;
+        }
+
+        const m4 = clamp01(1 - (m1 + m2 + m3));
+        const masses = [m1, m2, m3, m4];
+
+        for (let i = 0; i < 4; i += 1) {
+            sliders[i].value = masses[i].toFixed(6);
+            valueInputs[i].value = masses[i].toFixed(3);
+            hidden[i].value = masses[i].toFixed(6);
+        }
+        totalEl.textContent = masses.reduce((a, b) => a + b, 0).toFixed(3);
+    }
+
+    for (let i = 0; i < 3; i += 1) {
+        if (!sliders[i].dataset.boundMass) {
+            sliders[i].addEventListener('input', function() {
+                valueInputs[i].value = (parseFloat(sliders[i].value) || 0).toFixed(3);
+                syncMasses();
+            });
+            sliders[i].dataset.boundMass = '1';
+        }
+        if (!valueInputs[i].dataset.boundMass) {
+            valueInputs[i].addEventListener('input', function() {
+                sliders[i].value = String(clamp01(parseFloat(valueInputs[i].value) || 0));
+                syncMasses();
+            });
+            valueInputs[i].dataset.boundMass = '1';
+        }
+    }
+
+    sliders[3].disabled = true;
+    syncMasses();
+}
+
+function initModelInputsCollapse() {
+    const panel = document.getElementById('model-inputs-panel');
+    const toggle = document.getElementById('model-inputs-toggle');
+    if (!panel || !toggle || toggle.dataset.boundCollapse) {
+        return;
+    }
+
+    const label = toggle.querySelector('span');
+    function syncCollapseUi() {
+        const collapsed = panel.classList.contains('is-collapsed');
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+        if (label) {
+            label.textContent = collapsed ? 'Show Inputs' : 'Hide Inputs';
+        }
+    }
+
+    toggle.addEventListener('click', function() {
+        panel.classList.toggle('is-collapsed');
+        syncCollapseUi();
+    });
+
+    toggle.dataset.boundCollapse = '1';
+    syncCollapseUi();
+}
+
+// If page reloads with results, hide overlay automatically
+window.addEventListener('pageshow', function() {
+    stopLoadingProgress();
+    document.getElementById('loading-overlay').setAttribute('hidden', '');
+    const btn = document.getElementById('submit-btn');
+    if (btn) btn.disabled = false;
+    initPSDSourceSync();
+    initMaterialPresets();
+    initMassSliders();
+    initModelInputsCollapse();
+});
+
+initPSDSourceSync();
+initMaterialPresets();
+initMassSliders();
+initModelInputsCollapse();
+</script>
+{% endblock %}

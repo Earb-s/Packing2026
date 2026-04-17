@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Manual PSD Input</title>
+    <style>
+        :root {
+            --ink: #102022;
+            --muted: #476267;
+            --line: rgba(16, 32, 34, 0.16);
+            --brand: #2a9d8f;
+            --danger: #9e2a2b;
+            --warn-bg: #fff3cd;
+            --warn-line: #ffcd7a;
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 1rem;
+            font-family: "Sora", sans-serif;
+            color: var(--ink);
+            background: #f7f8f4;
+        }
+        .panel {
+            max-width: 880px;
+            margin: 0 auto;
+            border: 1px solid var(--line);
+            border-radius: 14px;
+            background: #fff;
+            padding: 1rem;
+        }
+        h1 {
+            margin: 0 0 0.35rem;
+            font-size: 1.3rem;
+        }
+        .subtitle {
+            margin: 0 0 0.9rem;
+            color: var(--muted);
+            font-size: 0.9rem;
+        }
+        .warn {
+            border: 1px solid var(--warn-line);
+            border-radius: 10px;
+            background: var(--warn-bg);
+            padding: 0.7rem 0.8rem;
+            margin-bottom: 0.85rem;
+            font-size: 0.86rem;
+        }
+        .warn ul {
+            margin: 0.35rem 0 0;
+            padding-left: 1rem;
+        }
+        .warn li { margin-bottom: 0.15rem; }
+        .table-wrap {
+            overflow: auto;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #fff;
+            max-height: 420px;
+        }
+        .mode-box {
+            margin-bottom: 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #f4f8f7;
+            padding: 0.75rem;
+        }
+        .mode-title {
+            margin: 0 0 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+        }
+        .row-grid {
+            display: grid;
+            gap: 0.55rem;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            align-items: end;
+        }
+        .row-grid label {
+            display: grid;
+            gap: 0.25rem;
+            font-size: 0.8rem;
+            color: var(--muted);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            min-width: 560px;
+        }
+        th, td {
+            border-bottom: 1px solid var(--line);
+            padding: 0.45rem;
+            text-align: left;
+            font-size: 0.85rem;
+        }
+        th { position: sticky; top: 0; background: #f4f8f7; }
+        input[type="number"] {
+            width: 100%;
+            border: 1px solid var(--line);
+            border-radius: 8px;
+            padding: 0.38rem 0.45rem;
+            font-family: inherit;
+        }
+        .actions {
+            margin-top: 0.8rem;
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        button {
+            border: 1px solid var(--line);
+            border-radius: 9px;
+            background: #fff;
+            color: var(--ink);
+            padding: 0.5rem 0.78rem;
+            cursor: pointer;
+            font-size: 0.84rem;
+            font-weight: 600;
+        }
+        .primary {
+            background: linear-gradient(120deg, var(--brand), #56c4b6);
+            color: #fff;
+            border: 0;
+        }
+        .danger { color: var(--danger); }
+        .error {
+            margin-top: 0.6rem;
+            color: var(--danger);
+            font-size: 0.84rem;
+            min-height: 1.2rem;
+        }
+    </style>
+</head>
+<body data-slot="{{ slot }}">
+    <div class="panel">
+        <h1>Manual PSD Input ({{ slot|upper }})</h1>
+        <p class="subtitle">Fill the table directly, or generate rows from Rosin-Rammler parameters, then click Done to send PSD data back to the main form.</p>
+
+        <div class="warn">
+            <strong>Caution:</strong>
+            <ul>
+                <li>Columns are fixed: <strong>Size (mm)</strong> and <strong>Acc from small</strong>.</li>
+                <li>Size must be positive numeric values in mm.</li>
+                <li>Acc from small must be between 0 and 100, non-decreasing by ascending size.</li>
+                <li>The final cumulative value should end at 100.</li>
+            </ul>
+        </div>
+
+        <div class="mode-box">
+            <p class="mode-title">Generate From Rosin-Rammler Parameters</p>
+            <div class="row-grid">
+                <label>
+                    x0 (mm)
+                    <input id="rr-x0" type="number" min="0" step="any" value="1.2" />
+                </label>
+                <label>
+                    n
+                    <input id="rr-n" type="number" min="0" step="any" value="1.4" />
+                </label>
+                <label>
+                    Min size (mm)
+                    <input id="rr-min" type="number" min="0" step="any" value="0.05" />
+                </label>
+                <label>
+                    Max size (mm)
+                    <input id="rr-max" type="number" min="0" step="any" value="5.0" />
+                </label>
+                <label>
+                    Points
+                    <input id="rr-points" type="number" min="3" step="1" value="16" />
+                </label>
+                <button type="button" onclick="generateFromRosinRammler()">Generate table</button>
+            </div>
+            <p class="subtitle" style="margin:0.55rem 0 0; font-size:0.8rem;">Equation used: y = 100 - 100 exp(-(x/x0)^n)</p>
+        </div>
+
+        <div class="table-wrap">
+            <table id="manual-table">
+                <thead>
+                    <tr>
+                        <th style="width: 70px">Row</th>
+                        <th>Size (mm)</th>
+                        <th>Acc from small</th>
+                    </tr>
+                </thead>
+                <tbody id="manual-body"></tbody>
+            </table>
+        </div>
+
+        <div class="actions">
+            <button type="button" onclick="addRow()">+ Add row</button>
+            <button type="button" class="danger" onclick="removeRow()">- Remove row</button>
+            <button type="button" onclick="prefillExample()">Prefill example</button>
+            <button type="button" class="primary" onclick="submitToParent()">Done</button>
+        </div>
+
+        <div class="error" id="error-box"></div>
+    </div>
+
+    <script>
+        const slot = document.body.dataset.slot || 'psd1';
+
+        function createRow(index, sizeValue = '', accValue = '') {
+            const tr = document.createElement('tr');
+            tr.innerHTML =
+                '<td>' + (index + 1) + '</td>' +
+                '<td><input type="number" min="0" step="any" class="size-input" value="' + sizeValue + '"></td>' +
+                '<td><input type="number" min="0" max="100" step="any" class="acc-input" value="' + accValue + '"></td>';
+            return tr;
+        }
+
+        function refreshRowNumbers() {
+            const rows = document.querySelectorAll('#manual-body tr');
+            rows.forEach(function(row, idx) {
+                row.children[0].textContent = String(idx + 1);
+            });
+        }
+
+        function addRow() {
+            const body = document.getElementById('manual-body');
+            body.appendChild(createRow(body.children.length));
+            refreshRowNumbers();
+        }
+
+        function removeRow() {
+            const body = document.getElementById('manual-body');
+            if (body.children.length > 1) {
+                body.removeChild(body.lastElementChild);
+                refreshRowNumbers();
+            }
+        }
+
+        function prefillExample() {
+            const body = document.getElementById('manual-body');
+            body.innerHTML = '';
+            const sample = [
+                [0.15, 5],
+                [0.30, 15],
+                [0.60, 35],
+                [1.20, 62],
+                [2.36, 82],
+                [4.75, 100],
+            ];
+            sample.forEach(function(pair, idx) {
+                body.appendChild(createRow(idx, pair[0], pair[1]));
+            });
+            refreshRowNumbers();
+        }
+
+        function generateFromRosinRammler() {
+            const x0 = parseFloat(document.getElementById('rr-x0').value);
+            const n = parseFloat(document.getElementById('rr-n').value);
+            const minSize = parseFloat(document.getElementById('rr-min').value);
+            const maxSize = parseFloat(document.getElementById('rr-max').value);
+            const points = parseInt(document.getElementById('rr-points').value, 10);
+            const box = document.getElementById('error-box');
+
+            if (!(x0 > 0) || !(n > 0) || !(minSize > 0) || !(maxSize > minSize) || !(points >= 3)) {
+                box.textContent = 'Rosin-Rammler inputs must satisfy: x0>0, n>0, min>0, max>min, points>=3.';
+                return;
+            }
+
+            const body = document.getElementById('manual-body');
+            body.innerHTML = '';
+
+            const logMin = Math.log10(minSize);
+            const logMax = Math.log10(maxSize);
+            const generated = [];
+
+            for (let i = 0; i < points; i += 1) {
+                const t = i / (points - 1);
+                const x = Math.pow(10, logMin + t * (logMax - logMin));
+                const y = 100 - (100 * Math.exp(-Math.pow(x / x0, n)));
+                generated.push({ x: x, y: y });
+            }
+
+            const yEnd = generated[generated.length - 1].y;
+            if (!(yEnd > 0)) {
+                box.textContent = 'Generated final cumulative value is not positive. Try larger max size or different x0 and n.';
+                return;
+            }
+
+            const scale = 100 / yEnd;
+            for (let i = 0; i < generated.length; i += 1) {
+                const x = generated[i].x;
+                let yScaled = generated[i].y * scale;
+                if (yScaled < 0) yScaled = 0;
+                if (yScaled > 100) yScaled = 100;
+                if (i === generated.length - 1) {
+                    yScaled = 100;
+                }
+                body.appendChild(createRow(i, x.toFixed(6), yScaled.toFixed(6)));
+            }
+            refreshRowNumbers();
+            box.textContent = '';
+        }
+
+        function getRows() {
+            const rows = [];
+            document.querySelectorAll('#manual-body tr').forEach(function(row) {
+                const size = parseFloat(row.querySelector('.size-input').value);
+                const acc = parseFloat(row.querySelector('.acc-input').value);
+                if (!Number.isNaN(size) || !Number.isNaN(acc)) {
+                    rows.push({ size: size, acc: acc });
+                }
+            });
+            return rows;
+        }
+
+        function validateRows(rows) {
+            if (rows.length < 2) return 'Please provide at least 2 data rows.';
+            for (let i = 0; i < rows.length; i += 1) {
+                const r = rows[i];
+                if (Number.isNaN(r.size) || Number.isNaN(r.acc)) return 'All rows must contain numeric values.';
+                if (!(r.size > 0)) return 'Size (mm) must be positive in every row.';
+                if (r.acc < 0 || r.acc > 100) return 'Acc from small must be between 0 and 100.';
+            }
+
+            const sorted = rows.slice().sort(function(a, b) { return a.size - b.size; });
+            for (let i = 1; i < sorted.length; i += 1) {
+                if (sorted[i].acc + 1e-9 < sorted[i - 1].acc) {
+                    return 'Acc from small must be non-decreasing after sorting by Size (mm).';
+                }
+            }
+            return '';
+        }
+
+        function rowsToCsv(rows) {
+            const sorted = rows.slice().sort(function(a, b) { return a.size - b.size; });
+            const lines = ['Size (mm),Acc from small'];
+            sorted.forEach(function(r) {
+                lines.push(r.size + ',' + r.acc);
+            });
+            return lines.join('\n');
+        }
+
+        function submitToParent() {
+            const rows = getRows();
+            const err = validateRows(rows);
+            const box = document.getElementById('error-box');
+            if (err) {
+                box.textContent = err;
+                return;
+            }
+
+            if (!window.opener || typeof window.opener.receiveManualPSD !== 'function') {
+                box.textContent = 'Main window not found. Keep the main page open and try again.';
+                return;
+            }
+
+            const csv = rowsToCsv(rows);
+            window.opener.receiveManualPSD(slot, csv, rows.length);
+            window.close();
+        }
+
+        // Start with a few empty rows.
+        for (let i = 0; i < 8; i += 1) {
+            addRow();
+        }
+    </script>
+</body>
+</html>

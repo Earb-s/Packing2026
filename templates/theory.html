@@ -1,0 +1,132 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="hero fade-in">
+    <p class="eyebrow">Method Overview</p>
+    <h1>The Theory Behind the Calculation</h1>
+    <p class="subtitle">
+        This page explains the full numerical workflow used by the simulator, including equations, assumptions, and data validation rules.
+    </p>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>1. Calculation Pipeline</h2>
+    <ol class="theory-steps">
+        <li><strong>Read and validate PSD data:</strong> CSV content is parsed by column names and values, not by file name.</li>
+        <li><strong>Sort by particle size:</strong> Size (mm) is ordered ascending, then cumulative passing is checked for monotonic increase.</li>
+        <li><strong>Fit Rosin-Rammler curves:</strong> Each active PSD is fit to obtain x0 and n.</li>
+        <li><strong>Build mixed PSD:</strong> Curves are blended using volume fractions derived from mass fractions and densities.</li>
+        <li><strong>Build class fractions:</strong> Mixed cumulative passing is converted to differential class fractions.</li>
+        <li><strong>Compute wall and loose terms:</strong> Interaction terms are evaluated for each class pair.</li>
+        <li><strong>Compute class packing and final packing:</strong> Minimum class packing defines no-compaction packing.</li>
+        <li><strong>Solve true packing under compaction:</strong> Compaction levels K = 4, 6.7, 7, 9 are solved via nonlinear root finding.</li>
+        <li><strong>Generate outputs:</strong> Charts and fit summary metrics are rendered on the results page.</li>
+    </ol>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>2. PSD Fitting Equation</h2>
+    <p class="subtitle">For each active PSD, the model uses a Rosin-Rammler style cumulative function:</p>
+    <div class="equation-block">
+        y(x) = 100 - 100 exp(-(x / x0)<sup>n</sup>)
+    </div>
+    <p class="theory-note">
+        where x is particle size in mm, x0 is characteristic size (mm), and n controls curve shape. The app reports RMSE and R2 for fit quality.
+    </p>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>3. Mixing Mass to Volume Fractions</h2>
+    <p class="subtitle">Input mass fractions are converted to volume fractions before blending PSD curves.</p>
+    <div class="equation-block">
+        m<sub>i,norm</sub> = m<sub>i</sub> / sum(m<sub>j</sub>)
+    </div>
+    <div class="equation-block">
+        v<sub>i</sub> = (m<sub>i,norm</sub> / rho<sub>i</sub>) / sum(m<sub>j,norm</sub> / rho<sub>j</sub>)
+    </div>
+    <div class="equation-block">
+        Y<sub>mix</sub>(x) = sum(v<sub>i</sub> * Y<sub>i</sub>(x))
+    </div>
+    <p class="theory-note">rho is density and Y(x) is cumulative passing at size x.</p>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>4. Class Fractions and Blended Beta</h2>
+    <div class="equation-block">
+        f<sub>k</sub> = (Acc<sub>k</sub> - Acc<sub>k-1</sub>) / 100
+    </div>
+    <div class="equation-block">
+        beta<sub>blend</sub> = sum(v<sub>i</sub> * beta<sub>i</sub>)
+    </div>
+    <p class="theory-note">f<sub>k</sub> is the differential fraction in class k.</p>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>5. Packing Equations (de Larrard Style)</h2>
+    <p class="subtitle">Wall and loose interaction terms are evaluated between size classes.</p>
+    <div class="equation-block">
+        W<sub>i</sub> = sum<sub>j &lt; i</sub> (1 - d<sub>i</sub>/d<sub>j</sub>)<sup>1.3</sup> * f<sub>j</sub>
+    </div>
+    <div class="equation-block">
+        L<sub>i</sub> = sum<sub>j &gt; i</sub> [0.7(1 - d<sub>j</sub>/d<sub>i</sub>) + 0.3(1 - d<sub>j</sub>/d<sub>i</sub>)<sup>12</sup>] * f<sub>j</sub>
+    </div>
+    <div class="equation-block">
+        P<sub>i</sub> = beta<sub>blend</sub> / (1 - (1 - beta<sub>blend</sub>)W<sub>i</sub> - L<sub>i</sub>)
+    </div>
+    <div class="equation-block">
+        P<sub>final</sub> = min(P<sub>i</sub>)
+    </div>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>6. True Packing Under Compaction</h2>
+    <p class="subtitle">For each target compaction level K, a nonlinear equation is solved:</p>
+    <div class="equation-block">
+        phi solves: sum((f<sub>i</sub> / beta<sub>blend</sub>) / ((1 / phi) - (1 / P<sub>final</sub>))) - K = 0
+    </div>
+    <p class="theory-note">The reported values k4, k6.7, k7, and k9 are these solved phi values.</p>
+</section>
+
+<section class="panel slide-up theory-panel">
+    <h2>7. Output Interpretation</h2>
+    <ul class="caution-list">
+        <li><strong>Final Packing Density:</strong> No-compaction packing from the limiting class.</li>
+        <li><strong>True Packing (K values):</strong> Expected packing under increasing compaction effort.</li>
+        <li><strong>Blended Beta:</strong> Intrinsic packing indicator of the blended system.</li>
+        <li><strong>PSD Fit Curves:</strong> How well each source PSD is represented by the fitted function.</li>
+    </ul>
+</section>
+
+<section class="panel slide-up caution-panel">
+    <h2>8. CSV Caution and Required Pattern</h2>
+    <p class="subtitle">Upload names can be anything. The parser ignores filename and validates only column names and values.</p>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Requirement</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Size</td>
+                    <td>Numeric, positive particle size values in mm.</td>
+                </tr>
+                <tr>
+                    <td>Acc from small</td>
+                    <td>Numeric cumulative passing from small size, bounded 0 to 100.</td>
+                </tr>
+                <tr>
+                    <td>Monotonic rule</td>
+                    <td>After sorting by Size (mm) ascending, Acc from small must be non-decreasing.</td>
+                </tr>
+                <tr>
+                    <td>End condition</td>
+                    <td>The final cumulative value at the largest size must be 100 (with small numeric tolerance).</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
+{% endblock %}
