@@ -21,23 +21,10 @@
 </div>
 
 <section class="hero fade-in">
-    <p class="eyebrow">Django Deployment</p>
     <h1>Particle Packing Studio</h1>
     <p class="subtitle">
         Upload four PSD curves, tune mass and material parameters, and generate packing predictions instantly.
     </p>
-</section>
-
-<section class="panel slide-up caution-panel">
-    <h2>CSV Upload Caution</h2>
-    <p class="subtitle">File name can be anything. The app reads column names and values only.</p>
-    <ul class="caution-list">
-        <li>Required columns: <strong>Size</strong> (in mm) and <strong>Acc from small</strong>.</li>
-        <li>Size must be numeric, in mm, and positive.</li>
-        <li>Acc from small must be numeric, between 0 and 100.</li>
-        <li>After sorting by Size (mm, small to large), Acc from small must be non-decreasing.</li>
-        <li>The last cumulative value at the largest size must be 100 (within tolerance).</li>
-    </ul>
 </section>
 
 <section class="panel slide-up collapsible-panel{% if result %} is-collapsed{% endif %}" id="model-inputs-panel">
@@ -59,7 +46,7 @@
             </div>
         {% endif %}
 
-        <div class="card-block">
+        <div class="card-block card-block--psd">
             <h3>PSD Files and Display Names</h3>
             <p class="hint">Provide PSD source (upload/manual) and optional display name in the same slot. If name is blank, default is PSD_1, PSD_2, PSD_3, PSD_4.</p>
             <div id="no-psd-warning" class="no-psd-warning" style="display:none">
@@ -92,8 +79,12 @@
                                 <span class="badge-tag" id="btag-{{ field.name }}">empty</span>
                                 <button type="button" class="badge-delete-btn" onclick="deletePSD('{{ field.name }}')" title="Remove this PSD">&#x2715;</button>
                             </div>
-                            <button type="button" class="badge-replace-btn" onclick="activateUpload('{{ field.name }}')">&#8593; Upload CSV file</button>
-                            <button type="button" class="badge-manual-btn" onclick="openManualPSDWindow('{{ field.name }}')">&#9998; Manual input</button>
+                            <div class="badge-mode-grid">
+                                <button type="button" class="badge-mode-btn" onclick="openManualPSDWindow('{{ field.name }}', 'rosinrammler')" title="Generate from Rosin-Rammler parameters">&#402; Rosin-Rammler</button>
+                                <button type="button" class="badge-mode-btn" onclick="openManualPSDWindow('{{ field.name }}', 'accfromsmall')" title="Enter cumulative passing percentages">&#8679; Acc from small</button>
+                                <button type="button" class="badge-mode-btn" onclick="openManualPSDWindow('{{ field.name }}', 'frequency')" title="Enter frequency (differential) percentages">&#9636; Frequency</button>
+                                <button type="button" class="badge-mode-btn" onclick="openManualPSDWindow('{{ field.name }}', 'upload')" title="Upload a CSV file">&#10514; Upload CSV</button>
+                            </div>
                         </div>
 
                         <!-- File input wrap -->
@@ -102,7 +93,6 @@
                             <div class="file-input-actions">
                                 <button type="button" class="cancel-upload-btn" onclick="cancelUpload('{{ field.name }}')">&#x2715; Cancel upload</button>
                                 <button type="button" class="delete-upload-btn" onclick="deletePSD('{{ field.name }}')">&#128465; Remove PSD</button>
-                                <button type="button" class="manual-upload-btn" onclick="openManualPSDWindow('{{ field.name }}')">&#9998; Manual input</button>
                             </div>
                         </div>
 
@@ -235,24 +225,34 @@
     <h2>Results</h2>
 
     <div class="metric-grid">
-        <div class="metric-card">
+        <div class="metric-card metric-card--highlight-blue">
             <p>Virtual Packing Density</p>
+            <small class="metric-k">(K &rarr; &infin;)</small>
+            <small class="metric-hint">Theoretical maximum</small>
             <strong>{{ result.final_packing|floatformat:6 }}</strong>
         </div>
         <div class="metric-card">
-            <p>True Packing Density with Compaction Index K=4</p>
+            <p>True Packing Density</p>
+            <small class="metric-k">(K=4)</small>
+            <small class="metric-hint">Loose placement, no vibration</small>
             <strong>{{ result.true_packing.k4|floatformat:6 }}</strong>
         </div>
-        <div class="metric-card">
-            <p>True Packing Density with Compaction Index K=6.7</p>
+        <div class="metric-card metric-card--highlight">
+            <p>True Packing Density</p>
+            <small class="metric-k">(K=6.7)</small>
+            <small class="metric-hint">★ Standard concrete compaction</small>
             <strong>{{ result.true_packing.k6_7|floatformat:6 }}</strong>
         </div>
         <div class="metric-card">
-            <p>True Packing Density with Compaction Index K=7</p>
+            <p>True Packing Density</p>
+            <small class="metric-k">(K=7)</small>
+            <small class="metric-hint">Normal to intensive vibration</small>
             <strong>{{ result.true_packing.k7|floatformat:6 }}</strong>
         </div>
         <div class="metric-card">
-            <p>True Packing Density with Compaction Index K=9</p>
+            <p>True Packing Density</p>
+            <small class="metric-k">(K=9)</small>
+            <small class="metric-hint">Intensive vibration, high energy</small>
             <strong>{{ result.true_packing.k9|floatformat:6 }}</strong>
         </div>
     </div>
@@ -350,8 +350,9 @@ const MATERIAL_PRESETS = {
     clay: { rho: 2.60, beta: 0.35 },
 };
 
-function openManualPSDWindow(name) {
-    const popup = window.open('/manual-psd/?slot=' + encodeURIComponent(name), 'manualPSD_' + name, 'width=900,height=720');
+function openManualPSDWindow(name, mode) {
+    const m = mode || 'accfromsmall';
+    const popup = window.open('/manual-psd/?slot=' + encodeURIComponent(name) + '&mode=' + encodeURIComponent(m), 'manualPSD_' + name, 'width=900,height=760');
     if (!popup) {
         alert('Popup was blocked. Please allow popups for this site to use manual PSD input.');
     }

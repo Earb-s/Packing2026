@@ -112,4 +112,7 @@ def manual_psd_window(request):
     slot = request.GET.get("slot", "psd1")
     if slot not in {"psd1", "psd2", "psd3", "psd4"}:
         slot = "psd1"
-    return render(request, "manual_psd_window.html", {"slot": slot})
+    mode = request.GET.get("mode", "accfromsmall")
+    if mode not in {"rosinrammler", "accfromsmall", "frequency"}:
+        mode = "accfromsmall"
+    return render(request, "manual_psd_window.html", {"slot": slot, "mode": mode})

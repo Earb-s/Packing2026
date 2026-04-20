@@ -3,361 +3,493 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Manual PSD Input</title>
+    <title>PSD Input — {{ slot|upper }}</title>
     <style>
         :root {
             --ink: #102022;
             --muted: #476267;
             --line: rgba(16, 32, 34, 0.16);
             --brand: #2a9d8f;
+            --brand-dark: #1e7168;
             --danger: #9e2a2b;
-            --warn-bg: #fff3cd;
-            --warn-line: #ffcd7a;
+            --warn-bg: #fff8e6;
+            --warn-line: #f5c842;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             padding: 1rem;
-            font-family: "Sora", sans-serif;
+            font-family: "Sora", sans-serif, system-ui;
             color: var(--ink);
-            background: #f7f8f4;
+            background: #f4f6f3;
         }
         .panel {
-            max-width: 880px;
+            max-width: 900px;
             margin: 0 auto;
             border: 1px solid var(--line);
-            border-radius: 14px;
+            border-radius: 16px;
             background: #fff;
-            padding: 1rem;
+            padding: 1.1rem 1.2rem 1.3rem;
+            box-shadow: 0 8px 28px rgba(16,32,34,0.08);
         }
-        h1 {
-            margin: 0 0 0.35rem;
-            font-size: 1.3rem;
-        }
-        .subtitle {
-            margin: 0 0 0.9rem;
-            color: var(--muted);
-            font-size: 0.9rem;
-        }
-        .warn {
+        h1 { margin: 0 0 0.25rem; font-size: 1.25rem; }
+        .subtitle { margin: 0 0 0.9rem; color: var(--muted); font-size: 0.88rem; }
+
+        /* caution */
+        .caution {
             border: 1px solid var(--warn-line);
             border-radius: 10px;
             background: var(--warn-bg);
-            padding: 0.7rem 0.8rem;
+            padding: 0.65rem 0.85rem;
+            margin-bottom: 1rem;
+            font-size: 0.83rem;
+        }
+        .caution summary {
+            cursor: pointer;
+            font-weight: 700;
+            list-style: none;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        .caution summary::before { content: "⚠"; }
+        .caution ul { margin: 0.4rem 0 0; padding-left: 1.1rem; }
+        .caution li { margin-bottom: 0.18rem; }
+
+        /* mode tabs */
+        .mode-tabs {
+            display: flex;
+            gap: 0.4rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid var(--line);
+            padding-bottom: 0.55rem;
+            flex-wrap: wrap;
+        }
+        .mode-tab {
+            border: 1px solid var(--line);
+            border-radius: 8px 8px 0 0;
+            background: #f0f2ef;
+            color: var(--muted);
+            padding: 0.45rem 0.85rem;
+            cursor: pointer;
+            font-size: 0.82rem;
+            font-weight: 600;
+            font-family: inherit;
+            transition: background 0.15s, color 0.15s;
+        }
+        .mode-tab:hover { background: #e2e6e0; }
+        .mode-tab.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
+        /* panes */
+        .mode-pane { display: none; }
+        .mode-pane.active { display: block; }
+
+        /* generator box */
+        .gen-box {
+            border: 1px solid var(--line);
+            border-radius: 10px;
+            background: #f4f8f7;
+            padding: 0.8rem;
             margin-bottom: 0.85rem;
-            font-size: 0.86rem;
         }
-        .warn ul {
-            margin: 0.35rem 0 0;
-            padding-left: 1rem;
+        .gen-title { margin: 0 0 0.5rem; font-size: 0.88rem; font-weight: 700; }
+        .row-grid {
+            display: grid;
+            gap: 0.55rem;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            align-items: end;
         }
-        .warn li { margin-bottom: 0.15rem; }
+        .row-grid label { display: grid; gap: 0.22rem; font-size: 0.79rem; color: var(--muted); }
+        .gen-note { margin: 0.5rem 0 0; font-size: 0.78rem; color: var(--muted); font-style: italic; }
+
+        /* table */
         .table-wrap {
             overflow: auto;
             border: 1px solid var(--line);
             border-radius: 10px;
             background: #fff;
-            max-height: 420px;
+            max-height: 360px;
         }
-        .mode-box {
-            margin-bottom: 0.85rem;
-            border: 1px solid var(--line);
-            border-radius: 10px;
-            background: #f4f8f7;
-            padding: 0.75rem;
-        }
-        .mode-title {
-            margin: 0 0 0.5rem;
-            font-size: 0.9rem;
-            font-weight: 700;
-        }
-        .row-grid {
-            display: grid;
-            gap: 0.55rem;
-            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
-            align-items: end;
-        }
-        .row-grid label {
-            display: grid;
-            gap: 0.25rem;
-            font-size: 0.8rem;
-            color: var(--muted);
-        }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 560px;
-        }
-        th, td {
-            border-bottom: 1px solid var(--line);
-            padding: 0.45rem;
-            text-align: left;
-            font-size: 0.85rem;
-        }
-        th { position: sticky; top: 0; background: #f4f8f7; }
+        table { width: 100%; border-collapse: collapse; min-width: 440px; }
+        th, td { border-bottom: 1px solid var(--line); padding: 0.42rem 0.5rem; text-align: left; font-size: 0.84rem; }
+        th { position: sticky; top: 0; background: #f4f8f7; font-weight: 700; }
+
+        /* inputs */
         input[type="number"] {
             width: 100%;
             border: 1px solid var(--line);
             border-radius: 8px;
             padding: 0.38rem 0.45rem;
             font-family: inherit;
+            font-size: 0.83rem;
+            background: #fff;
         }
-        .actions {
-            margin-top: 0.8rem;
-            display: flex;
-            gap: 0.5rem;
-            flex-wrap: wrap;
-        }
+        input:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+
+        /* buttons */
+        .actions { margin-top: 0.8rem; display: flex; gap: 0.45rem; flex-wrap: wrap; }
         button {
             border: 1px solid var(--line);
             border-radius: 9px;
             background: #fff;
             color: var(--ink);
-            padding: 0.5rem 0.78rem;
+            padding: 0.48rem 0.8rem;
             cursor: pointer;
-            font-size: 0.84rem;
+            font-size: 0.83rem;
             font-weight: 600;
+            font-family: inherit;
+            transition: background 0.12s;
         }
-        .primary {
-            background: linear-gradient(120deg, var(--brand), #56c4b6);
-            color: #fff;
-            border: 0;
-        }
-        .danger { color: var(--danger); }
-        .error {
-            margin-top: 0.6rem;
-            color: var(--danger);
-            font-size: 0.84rem;
-            min-height: 1.2rem;
-        }
+        button:hover { background: #f0f2ef; }
+        .btn-primary { background: linear-gradient(120deg, var(--brand), #56c4b6); color: #fff; border: 0; }
+        .btn-primary:hover { background: linear-gradient(120deg, var(--brand-dark), var(--brand)); }
+        .btn-generate { background: var(--ink); color: #fff; border: 0; }
+        .btn-generate:hover { background: #2a3e40; }
+        .btn-danger { color: var(--danger); }
+        .error-box { margin-top: 0.6rem; color: var(--danger); font-size: 0.83rem; min-height: 1.1rem; }
     </style>
 </head>
-<body data-slot="{{ slot }}">
-    <div class="panel">
-        <h1>Manual PSD Input ({{ slot|upper }})</h1>
-        <p class="subtitle">Fill the table directly, or generate rows from Rosin-Rammler parameters, then click Done to send PSD data back to the main form.</p>
+<body data-slot="{{ slot }}" data-initmode="{{ mode }}">
+<div class="panel">
+    <h1>PSD Input &mdash; {{ slot|upper }}</h1>
+    <p class="subtitle">Choose an input method, fill in the data, then click <strong>Done</strong> to send the PSD back to the main form.</p>
 
-        <div class="warn">
-            <strong>Caution:</strong>
-            <ul>
-                <li>Columns are fixed: <strong>Size (mm)</strong> and <strong>Acc from small</strong>.</li>
-                <li>Size must be positive numeric values in mm.</li>
-                <li>Acc from small must be between 0 and 100, non-decreasing by ascending size.</li>
-                <li>The final cumulative value should end at 100.</li>
-            </ul>
-        </div>
+    <details class="caution" id="format-requirements" style="display: none;">
+        <summary>Data Format Requirements</summary>
+        <ul>
+            <li style="color: #d32f2f; font-weight: 700; background: #ffebee; padding: 0.4rem 0.5rem; border-radius: 4px; margin-bottom: 0.5rem;">⚠ CSV columns must be named exactly <code>Size</code> and <code>Acc from small</code></li>
+            <li>All modes convert data to <strong>Size (mm)</strong> and <strong>Acc from small (cumulative %)</strong> internally.</li>
+            <li>Size must be <strong>positive</strong> numeric values in mm.</li>
+            <li>Acc from small must be between <strong>0 and 100</strong>, non-decreasing with ascending size.</li>
+            <li>The final cumulative value must reach <strong>100</strong>.</li>
+            <li>For Frequency input: enter differential percentages per sieve &mdash; they will be cumulated automatically.</li>
+        </ul>
+    </details>
 
-        <div class="mode-box">
-            <p class="mode-title">Generate From Rosin-Rammler Parameters</p>
-            <div class="row-grid">
-                <label>
-                    x0 (mm)
-                    <input id="rr-x0" type="number" min="0" step="any" value="1.2" />
-                </label>
-                <label>
-                    n
-                    <input id="rr-n" type="number" min="0" step="any" value="1.4" />
-                </label>
-                <label>
-                    Min size (mm)
-                    <input id="rr-min" type="number" min="0" step="any" value="0.05" />
-                </label>
-                <label>
-                    Max size (mm)
-                    <input id="rr-max" type="number" min="0" step="any" value="5.0" />
-                </label>
-                <label>
-                    Points
-                    <input id="rr-points" type="number" min="3" step="1" value="16" />
-                </label>
-                <button type="button" onclick="generateFromRosinRammler()">Generate table</button>
-            </div>
-            <p class="subtitle" style="margin:0.55rem 0 0; font-size:0.8rem;">Equation used: y = 100 - 100 exp(-(x/x0)^n)</p>
-        </div>
-
-        <div class="table-wrap">
-            <table id="manual-table">
-                <thead>
-                    <tr>
-                        <th style="width: 70px">Row</th>
-                        <th>Size (mm)</th>
-                        <th>Acc from small</th>
-                    </tr>
-                </thead>
-                <tbody id="manual-body"></tbody>
-            </table>
-        </div>
-
-        <div class="actions">
-            <button type="button" onclick="addRow()">+ Add row</button>
-            <button type="button" class="danger" onclick="removeRow()">- Remove row</button>
-            <button type="button" onclick="prefillExample()">Prefill example</button>
-            <button type="button" class="primary" onclick="submitToParent()">Done</button>
-        </div>
-
-        <div class="error" id="error-box"></div>
+    <div class="mode-tabs" role="tablist">
+        <button class="mode-tab" data-pane="pane-rr"   role="tab">&#402; Rosin-Rammler</button>
+        <button class="mode-tab" data-pane="pane-acc"  role="tab">&#8679; Acc from small</button>
+        <button class="mode-tab" data-pane="pane-freq" role="tab">&#9636; Frequency</button>
+        <button class="mode-tab" data-pane="pane-csv"  role="tab">&#10514; Upload CSV</button>
     </div>
 
-    <script>
-        const slot = document.body.dataset.slot || 'psd1';
+    <!-- PANE 1: Rosin-Rammler -->
+    <div class="mode-pane" id="pane-rr">
+        <div class="gen-box">
+            <p class="gen-title">Generate from Rosin-Rammler Parameters</p>
+            <p class="gen-note" style="margin-bottom:0.55rem;">y = 100 &minus; 100 &sdot; exp(&minus;(x / x&#8320;)&#8319;)</p>
+            <div class="row-grid">
+                <label>x&#8320; (mm)<input id="rr-x0" type="number" min="0" step="any" value="1.2" /></label>
+                <label>n<input id="rr-n" type="number" min="0" step="any" value="1.4" /></label>
+                <label>Min size (mm)<input id="rr-min" type="number" min="0" step="any" value="0.05" /></label>
+                <label>Max size (mm)<input id="rr-max" type="number" min="0" step="any" value="5.0" /></label>
+                <label>Points<input id="rr-points" type="number" min="3" step="1" value="16" /></label>
+                <button type="button" class="btn-generate" onclick="generateFromRR()">Generate table</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table><thead><tr><th style="width:50px">#</th><th>Size (mm)</th><th>Acc from small (%)</th></tr></thead>
+            <tbody id="rr-body"></tbody></table>
+        </div>
+        <div class="actions">
+            <button onclick="addRow('rr-body','rr')">+ Add row</button>
+            <button class="btn-danger" onclick="removeRow('rr-body')">&#8722; Remove row</button>
+            <button class="btn-primary" onclick="submitPane('rr')">Done</button>
+        </div>
+    </div>
 
-        function createRow(index, sizeValue = '', accValue = '') {
-            const tr = document.createElement('tr');
-            tr.innerHTML =
-                '<td>' + (index + 1) + '</td>' +
-                '<td><input type="number" min="0" step="any" class="size-input" value="' + sizeValue + '"></td>' +
-                '<td><input type="number" min="0" max="100" step="any" class="acc-input" value="' + accValue + '"></td>';
-            return tr;
+    <!-- PANE 2: Acc from small -->
+    <div class="mode-pane" id="pane-acc">
+        <p class="subtitle" style="margin-bottom:0.7rem;">Enter each sieve size and its cumulative passing percentage. Fill rows from the smallest size in the first row to the largest size in the last row. The last entry must be 100.</p>
+        <div class="table-wrap">
+            <table><thead><tr><th style="width:50px">#</th><th>Size (mm)</th><th>Acc from small (%)</th></tr></thead>
+            <tbody id="acc-body"></tbody></table>
+        </div>
+        <div class="actions">
+            <button onclick="addRow('acc-body','acc')">+ Add row</button>
+            <button class="btn-danger" onclick="removeRow('acc-body')">&#8722; Remove row</button>
+            <button onclick="prefillExample('acc')">Prefill example</button>
+            <button class="btn-primary" onclick="submitPane('acc')">Done</button>
+        </div>
+    </div>
+
+    <!-- PANE 3: Frequency -->
+    <div class="mode-pane" id="pane-freq">
+        <p class="subtitle" style="margin-bottom:0.7rem;">Enter each sieve size and the <strong>differential frequency (%)</strong> retained on that sieve. Fill rows from the smallest size in the first row to the largest size in the last row. Values must sum to 100 &mdash; they will be cumulated automatically.</p>
+        <div class="table-wrap">
+            <table><thead><tr><th style="width:50px">#</th><th>Size (mm)</th><th>Frequency (%)</th></tr></thead>
+            <tbody id="freq-body"></tbody></table>
+        </div>
+        <div class="actions">
+            <button onclick="addRow('freq-body','freq')">+ Add row</button>
+            <button class="btn-danger" onclick="removeRow('freq-body')">&#8722; Remove row</button>
+            <button onclick="prefillExample('freq')">Prefill example</button>
+            <button class="btn-primary" onclick="submitPane('freq')">Done</button>
+        </div>
+    </div>
+
+    <!-- PANE 4: CSV Upload -->
+    <div class="mode-pane" id="pane-csv">
+        <p class="subtitle" style="margin-bottom:0.7rem;">Upload a CSV file with columns <code>Size</code> and <code>Acc from small</code>. The file will be parsed and validated.</p>
+        <div class="gen-box">
+            <p class="gen-title">Select CSV File</p>
+            <div style="display: flex; gap: 0.6rem; align-items: flex-end;">
+                <label style="display: flex; flex-direction: column; gap: 0.3rem; flex: 1;">
+                    <span style="font-size: 0.82rem; font-weight: 600;">CSV File</span>
+                    <input id="csv-file-input" type="file" accept=".csv" style="padding: 0.4rem; border: 1px solid var(--line); border-radius: 6px; font-size: 0.82rem;" />
+                </label>
+                <button type="button" onclick="parseCSVFile()" style="padding: 0.45rem 0.8rem; background: var(--brand); color: #fff; border: none; border-radius: 6px; cursor: pointer; font-size: 0.82rem; font-weight: 600;">Parse</button>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table><thead><tr><th style="width:50px">#</th><th>Size (mm)</th><th>Acc from small (%)</th></tr></thead>
+            <tbody id="csv-body"></tbody></table>
+        </div>
+        <div class="actions">
+            <button class="btn-primary" onclick="submitPane('csv')">Done</button>
+        </div>
+    </div>
+
+    <div class="error-box" id="error-box"></div>
+</div>
+
+<script>
+    var slot = document.body.dataset.slot || 'psd1';
+    var initMode = document.body.dataset.initmode || 'accfromsmall';
+    var modeMap = { rosinrammler: 'pane-rr', accfromsmall: 'pane-acc', frequency: 'pane-freq', upload: 'pane-csv', csv: 'pane-csv' };
+
+    function activateTab(paneId) {
+        document.querySelectorAll('.mode-tab').forEach(function(btn) {
+            btn.classList.toggle('active', btn.dataset.pane === paneId);
+        });
+        document.querySelectorAll('.mode-pane').forEach(function(pane) {
+            pane.classList.toggle('active', pane.id === paneId);
+        });
+        document.getElementById('error-box').textContent = '';
+        var reqBlock = document.getElementById('format-requirements');
+        reqBlock.style.display = (paneId === 'pane-csv') ? 'block' : 'none';
+    }
+
+    document.querySelectorAll('.mode-tab').forEach(function(btn) {
+        btn.addEventListener('click', function() { activateTab(btn.dataset.pane); });
+    });
+
+    function makeRow(bodyId, type, idx, v1, v2) {
+        var tr = document.createElement('tr');
+        var maxAttr = (type === 'rr' || type === 'acc') ? ' max="100"' : '';
+        var sizePlaceholder = (type === 'acc' || type === 'freq') ? 'smallest to largest' : 'size (mm)';
+        tr.innerHTML =
+            '<td>' + (idx + 1) + '</td>' +
+            '<td><input type="number" min="0" step="any" class="size-inp" placeholder="' + sizePlaceholder + '" value="' + (v1 !== undefined ? v1 : '') + '"></td>' +
+            '<td><input type="number" min="0"' + maxAttr + ' step="any" class="val-inp" value="' + (v2 !== undefined ? v2 : '') + '"></td>';
+        return tr;
+    }
+
+    function addRow(bodyId, type) {
+        var body = document.getElementById(bodyId);
+        body.appendChild(makeRow(bodyId, type, body.children.length));
+        refreshNums(bodyId);
+    }
+
+    function removeRow(bodyId) {
+        var body = document.getElementById(bodyId);
+        if (body.children.length > 1) {
+            body.removeChild(body.lastElementChild);
+            refreshNums(bodyId);
         }
+    }
 
-        function refreshRowNumbers() {
-            const rows = document.querySelectorAll('#manual-body tr');
-            rows.forEach(function(row, idx) {
-                row.children[0].textContent = String(idx + 1);
+    function refreshNums(bodyId) {
+        document.querySelectorAll('#' + bodyId + ' tr').forEach(function(r, i) {
+            r.children[0].textContent = String(i + 1);
+        });
+    }
+
+    function getRows(bodyId) {
+        var rows = [];
+        document.querySelectorAll('#' + bodyId + ' tr').forEach(function(tr) {
+            rows.push({
+                size: parseFloat(tr.querySelector('.size-inp').value),
+                val:  parseFloat(tr.querySelector('.val-inp').value)
             });
+        });
+        return rows;
+    }
+
+    function initRows(bodyId, type, count) {
+        var body = document.getElementById(bodyId);
+        body.innerHTML = '';
+        for (var i = 0; i < count; i++) { body.appendChild(makeRow(bodyId, type, i)); }
+    }
+
+    var EXAMPLE_ACC  = [[0.075,1],[0.15,5],[0.30,15],[0.60,35],[1.18,58],[2.36,78],[4.75,92],[9.5,100]];
+    var EXAMPLE_FREQ = [[0.075,1],[0.15,4],[0.30,10],[0.60,20],[1.18,23],[2.36,20],[4.75,14],[9.5,8]];
+
+    function prefillExample(type) {
+        var data = type === 'freq' ? EXAMPLE_FREQ : EXAMPLE_ACC;
+        var bodyId = type + '-body';
+        var body = document.getElementById(bodyId);
+        body.innerHTML = '';
+        data.forEach(function(p, i) { body.appendChild(makeRow(bodyId, type, i, p[0], p[1])); });
+        refreshNums(bodyId);
+    }
+
+    function generateFromRR() {
+        var x0  = parseFloat(document.getElementById('rr-x0').value);
+        var n   = parseFloat(document.getElementById('rr-n').value);
+        var mn  = parseFloat(document.getElementById('rr-min').value);
+        var mx  = parseFloat(document.getElementById('rr-max').value);
+        var pts = parseInt(document.getElementById('rr-points').value, 10);
+        var box = document.getElementById('error-box');
+        if (!(x0>0)||!(n>0)||!(mn>0)||!(mx>mn)||!(pts>=3)){
+            box.textContent='Inputs must satisfy: x0>0, n>0, min>0, max>min, points≥3.'; return;
         }
-
-        function addRow() {
-            const body = document.getElementById('manual-body');
-            body.appendChild(createRow(body.children.length));
-            refreshRowNumbers();
+        var body = document.getElementById('rr-body');
+        body.innerHTML = '';
+        var logMin = Math.log10(mn), logMax = Math.log10(mx), arr = [];
+        for (var i=0;i<pts;i++){
+            var t=i/(pts-1), x=Math.pow(10,logMin+t*(logMax-logMin));
+            arr.push({x:x, y:100-100*Math.exp(-Math.pow(x/x0,n))});
         }
+        var yEnd=arr[arr.length-1].y;
+        if(!(yEnd>0)){box.textContent='Final cumulative value not positive. Adjust parameters.';return;}
+        var scale=100/yEnd;
+        arr.forEach(function(pt,i){
+            var yS=Math.min(100,Math.max(0,pt.y*scale));
+            if(i===arr.length-1)yS=100;
+            body.appendChild(makeRow('rr-body','rr',i,pt.x.toFixed(6),yS.toFixed(6)));
+        });
+        refreshNums('rr-body');
+        box.textContent='';
+    }
 
-        function removeRow() {
-            const body = document.getElementById('manual-body');
-            if (body.children.length > 1) {
-                body.removeChild(body.lastElementChild);
-                refreshRowNumbers();
-            }
+    function validateAccRows(rows) {
+        if(rows.length<2) return 'Provide at least 2 data rows.';
+        for(var i=0;i<rows.length;i++){
+            if(isNaN(rows[i].size)||isNaN(rows[i].val)) return 'All rows must have numeric values.';
+            if(!(rows[i].size>0)) return 'Size (mm) must be positive.';
+            if(rows[i].val<0||rows[i].val>100) return 'Acc from small must be 0–100.';
         }
-
-        function prefillExample() {
-            const body = document.getElementById('manual-body');
-            body.innerHTML = '';
-            const sample = [
-                [0.15, 5],
-                [0.30, 15],
-                [0.60, 35],
-                [1.20, 62],
-                [2.36, 82],
-                [4.75, 100],
-            ];
-            sample.forEach(function(pair, idx) {
-                body.appendChild(createRow(idx, pair[0], pair[1]));
-            });
-            refreshRowNumbers();
+        var s=rows.slice().sort(function(a,b){return a.size-b.size;});
+        for(var j=1;j<s.length;j++){
+            if(s[j].val+1e-9<s[j-1].val) return 'Acc from small must be non-decreasing with ascending size.';
         }
+        if(Math.abs(s[s.length-1].val-100)>0.5) return 'Last cumulative value must be 100.';
+        return '';
+    }
 
-        function generateFromRosinRammler() {
-            const x0 = parseFloat(document.getElementById('rr-x0').value);
-            const n = parseFloat(document.getElementById('rr-n').value);
-            const minSize = parseFloat(document.getElementById('rr-min').value);
-            const maxSize = parseFloat(document.getElementById('rr-max').value);
-            const points = parseInt(document.getElementById('rr-points').value, 10);
-            const box = document.getElementById('error-box');
+    function validateFreqRows(rows) {
+        if(rows.length<2) return 'Provide at least 2 data rows.';
+        var total=0;
+        for(var i=0;i<rows.length;i++){
+            if(isNaN(rows[i].size)||isNaN(rows[i].val)) return 'All rows must have numeric values.';
+            if(!(rows[i].size>0)) return 'Size (mm) must be positive.';
+            if(rows[i].val<0) return 'Frequency values must be ≥ 0.';
+            total+=rows[i].val;
+        }
+        if(Math.abs(total-100)>1.0) return 'Frequency values must sum to 100 (current: '+total.toFixed(2)+').';
+        return '';
+    }
 
-            if (!(x0 > 0) || !(n > 0) || !(minSize > 0) || !(maxSize > minSize) || !(points >= 3)) {
-                box.textContent = 'Rosin-Rammler inputs must satisfy: x0>0, n>0, min>0, max>min, points>=3.';
-                return;
-            }
+    function rowsToCsv(rows) {
+        var sorted=rows.slice().sort(function(a,b){return a.size-b.size;});
+        var lines=['Size (mm),Acc from small'];
+        sorted.forEach(function(r){lines.push(r.size+','+r.val);});
+        return lines.join('\n');
+    }
 
-            const body = document.getElementById('manual-body');
-            body.innerHTML = '';
+    function freqToAccRows(rows) {
+        var sorted=rows.slice().sort(function(a,b){return a.size-b.size;});
+        var total=sorted.reduce(function(s,r){return s+r.val;},0);
+        var cum=0;
+        return sorted.map(function(r){
+            cum+=r.val;
+            return {size:r.size, val:Math.min(100,(cum/total)*100)};
+        });
+    }
 
-            const logMin = Math.log10(minSize);
-            const logMax = Math.log10(maxSize);
-            const generated = [];
-
-            for (let i = 0; i < points; i += 1) {
-                const t = i / (points - 1);
-                const x = Math.pow(10, logMin + t * (logMax - logMin));
-                const y = 100 - (100 * Math.exp(-Math.pow(x / x0, n)));
-                generated.push({ x: x, y: y });
-            }
-
-            const yEnd = generated[generated.length - 1].y;
-            if (!(yEnd > 0)) {
-                box.textContent = 'Generated final cumulative value is not positive. Try larger max size or different x0 and n.';
-                return;
-            }
-
-            const scale = 100 / yEnd;
-            for (let i = 0; i < generated.length; i += 1) {
-                const x = generated[i].x;
-                let yScaled = generated[i].y * scale;
-                if (yScaled < 0) yScaled = 0;
-                if (yScaled > 100) yScaled = 100;
-                if (i === generated.length - 1) {
-                    yScaled = 100;
+    function parseCSVFile() {
+        var box = document.getElementById('error-box');
+        var fileInput = document.getElementById('csv-file-input');
+        if (!fileInput.files.length) {
+            box.textContent = 'Please select a CSV file.';
+            return;
+        }
+        var file = fileInput.files[0];
+        var reader = new FileReader();
+        reader.onload = function(e) {
+            try {
+                var text = e.target.result;
+                var lines = text.trim().split(/\n/);
+                if (lines.length < 2) {
+                    box.textContent = 'CSV file must have at least a header and one data row.';
+                    return;
                 }
-                body.appendChild(createRow(i, x.toFixed(6), yScaled.toFixed(6)));
-            }
-            refreshRowNumbers();
-            box.textContent = '';
-        }
-
-        function getRows() {
-            const rows = [];
-            document.querySelectorAll('#manual-body tr').forEach(function(row) {
-                const size = parseFloat(row.querySelector('.size-input').value);
-                const acc = parseFloat(row.querySelector('.acc-input').value);
-                if (!Number.isNaN(size) || !Number.isNaN(acc)) {
-                    rows.push({ size: size, acc: acc });
+                var header = lines[0].toLowerCase().split(',').map(function(h) { return h.trim(); });
+                var sizeIdx = header.findIndex(function(h) { return h.indexOf('size') !== -1; });
+                var accIdx = header.findIndex(function(h) { return h.indexOf('acc') !== -1 || h.indexOf('passing') !== -1 || h.indexOf('cumulative') !== -1; });
+                if (sizeIdx === -1 || accIdx === -1) {
+                    box.textContent = 'CSV must have columns containing "Size" and "Acc" (or "Passing"/"Cumulative").';
+                    return;
                 }
-            });
-            return rows;
-        }
-
-        function validateRows(rows) {
-            if (rows.length < 2) return 'Please provide at least 2 data rows.';
-            for (let i = 0; i < rows.length; i += 1) {
-                const r = rows[i];
-                if (Number.isNaN(r.size) || Number.isNaN(r.acc)) return 'All rows must contain numeric values.';
-                if (!(r.size > 0)) return 'Size (mm) must be positive in every row.';
-                if (r.acc < 0 || r.acc > 100) return 'Acc from small must be between 0 and 100.';
-            }
-
-            const sorted = rows.slice().sort(function(a, b) { return a.size - b.size; });
-            for (let i = 1; i < sorted.length; i += 1) {
-                if (sorted[i].acc + 1e-9 < sorted[i - 1].acc) {
-                    return 'Acc from small must be non-decreasing after sorting by Size (mm).';
+                var rows = [];
+                for (var i = 1; i < lines.length; i++) {
+                    var line = lines[i].trim();
+                    if (!line) continue;
+                    var cols = line.split(',');
+                    var size = parseFloat(cols[sizeIdx]);
+                    var acc = parseFloat(cols[accIdx]);
+                    if (!isNaN(size) && !isNaN(acc)) {
+                        rows.push({ size: size, val: acc });
+                    }
                 }
+                if (rows.length < 2) {
+                    box.textContent = 'Could not parse at least 2 valid data rows from CSV.';
+                    return;
+                }
+                var err = validateAccRows(rows);
+                if (err) {
+                    box.textContent = err;
+                    return;
+                }
+                var csvBody = document.getElementById('csv-body');
+                csvBody.innerHTML = '';
+                rows.forEach(function(r, i) {
+                    csvBody.appendChild(makeRow('csv-body', 'csv', i, r.size, r.val));
+                });
+                refreshNums('csv-body');
+                box.textContent = '';
+            } catch (ex) {
+                box.textContent = 'Error parsing CSV: ' + ex.message;
             }
-            return '';
+        };
+        reader.readAsText(file);
+    }
+
+    function submitPane(type) {
+        var box=document.getElementById('error-box'), rows, err, accRows;
+        if(type==='rr'){
+            rows=getRows('rr-body'); err=validateAccRows(rows); accRows=rows;
+        } else if(type==='acc'){
+            rows=getRows('acc-body'); err=validateAccRows(rows); accRows=rows;
+        } else if(type==='freq'){
+            rows=getRows('freq-body'); err=validateFreqRows(rows);
+            if(!err) accRows=freqToAccRows(rows);
+        } else if(type==='csv'){
+            rows=getRows('csv-body'); err=validateAccRows(rows); accRows=rows;
         }
-
-        function rowsToCsv(rows) {
-            const sorted = rows.slice().sort(function(a, b) { return a.size - b.size; });
-            const lines = ['Size (mm),Acc from small'];
-            sorted.forEach(function(r) {
-                lines.push(r.size + ',' + r.acc);
-            });
-            return lines.join('\n');
+        if(err){box.textContent=err;return;}
+        if(!window.opener||typeof window.opener.receiveManualPSD!=='function'){
+            box.textContent='Main window not found. Keep the main page open and try again.';return;
         }
+        window.opener.receiveManualPSD(slot, rowsToCsv(accRows), accRows.length);
+        window.close();
+    }
 
-        function submitToParent() {
-            const rows = getRows();
-            const err = validateRows(rows);
-            const box = document.getElementById('error-box');
-            if (err) {
-                box.textContent = err;
-                return;
-            }
-
-            if (!window.opener || typeof window.opener.receiveManualPSD !== 'function') {
-                box.textContent = 'Main window not found. Keep the main page open and try again.';
-                return;
-            }
-
-            const csv = rowsToCsv(rows);
-            window.opener.receiveManualPSD(slot, csv, rows.length);
-            window.close();
-        }
-
-        // Start with a few empty rows.
-        for (let i = 0; i < 8; i += 1) {
-            addRow();
-        }
-    </script>
+    initRows('rr-body','rr',8);
+    initRows('acc-body','acc',8);
+    initRows('freq-body','freq',8);
+    activateTab(modeMap[initMode]||'pane-acc');
+</script>
 </body>
 </html>
